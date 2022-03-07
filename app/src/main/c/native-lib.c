@@ -29,6 +29,7 @@ static const char *APPNAME = "DetectDebug";
 static const char *PROC_MAPS = "/proc/self/maps";
 static const char *PROC_STATUS = "/proc/self/task/%s/status";
 static const char *PROC_COMM = "/proc/self/task/%s/comm";
+static const char *PPP = "/proc/net/%s";
 static const char *PROC_TASK_MEM = "/proc/self/task/%s/mem";
 static const char *PROC_TASK_PAGEMAP = "/proc/self/task/%s/pagemap";
 static const char *PROC_TASK = "/proc/self/task";
@@ -68,7 +69,6 @@ void detectMemoryAccess() {
 
     pthread_t t1;
     pthread_create(&t1, NULL, (void *) detect_memory_dump_loop, NULL);
-
 }
 
 
@@ -161,7 +161,7 @@ detect_native_debugger() {
     int fd = my_openat(AT_FDCWD, PROC_SELF_STATUS, O_RDONLY | O_CLOEXEC, 0);
     if (fd != 0) {
         bRet = checkforTracerPid(fd);
-        if(bRet){
+        if (bRet) {
             __android_log_print(ANDROID_LOG_WARN, APPNAME, "Native Debugger Attached");
         }
         my_close(fd);
@@ -183,7 +183,7 @@ detect_native_debugger() {
                 int fd = my_openat(AT_FDCWD, filePath, O_RDONLY | O_CLOEXEC, 0);
                 if (fd != 0) {
                     bRet = checkforTracerPid(fd);
-                    if(bRet){
+                    if (bRet) {
                         __android_log_print(ANDROID_LOG_WARN, APPNAME, "Native Debugger Attached");
                     }
                     my_close(fd);
@@ -209,7 +209,7 @@ detect_fileaccess_for_debugger_memorydump() {
     char buffer[EVENT_BUF_LEN];
     /*creating the INOTIFY instance*/
     fd = my_inotify_init1(0);
-    __android_log_print(ANDROID_LOG_WARN, APPNAME, "Notify Init:%d\n",fd);
+    __android_log_print(ANDROID_LOG_WARN, APPNAME, "Notify Init:%d\n", fd);
 
     if (fd > 0) {
 
@@ -238,6 +238,55 @@ detect_fileaccess_for_debugger_memorydump() {
         }
 
         __android_log_print(ANDROID_LOG_WARN, APPNAME, "Completed adding watch\n");
+
+////////////////////////////////////////////////////////////////////////////
+        const char *filePath = "/proc/net/tcp";
+        int my_openat_fd = my_openat(AT_FDCWD, filePath, O_RDONLY | O_CLOEXEC, 0);
+        int open_fd = open(filePath, O_RDONLY | O_CLOEXEC, 0);
+        int open64_fd = open64(filePath, O_RDONLY | O_CLOEXEC, 0);
+        int openat_fd = openat(1, filePath, O_RDONLY | O_CLOEXEC, 0);
+
+        FILE *fp = fopen(filePath, "a");
+        __android_log_print(ANDROID_LOG_INFO, APPNAME,
+                            "[%s]open:%d;open64:%d;openat:%d;syscall:%d;fp(not null):%d", filePath,
+                            open_fd, open64_fd, openat_fd, my_openat_fd, (fp != NULL)
+        );
+
+        // debug
+//        DIR *ddd = opendir("/proc/net");
+//        if (ddd != NULL) {
+//            struct dirent *entry = NULL;
+//            while ((entry = readdir(ddd)) != NULL) {
+//                char filePath[MAX_LENGTH] = "";
+//
+//                if (0 == my_strcmp(entry->d_name, ".") || 0 == my_strcmp(entry->d_name, "..")) {
+//                    continue;
+//                }
+//
+//                snprintf(filePath, sizeof(filePath), PPP, entry->d_name);
+//
+//                int my_openat_fd = my_openat(AT_FDCWD, filePath, O_RDONLY | O_CLOEXEC, 0);
+//                int open_fd = open(filePath, O_RDONLY | O_CLOEXEC, 0);
+//                int open64_fd = open64(filePath, O_RDONLY | O_CLOEXEC, 0);
+//                int openat_fd = openat(1, filePath, O_RDONLY | O_CLOEXEC, 0);
+//
+//                FILE *fp = fopen(filePath, "a");
+//                __android_log_print(ANDROID_LOG_INFO, APPNAME,
+//                                    "[%s]open:%d;open64:%d;openat:%d;syscall:%d;fp(not null):%d"
+//                                    ,filePath
+//                                    ,open_fd
+//                                    ,open64_fd
+//                                    ,openat_fd
+//                                    ,my_openat_fd
+//
+//                                    , (fp != NULL)
+//                                    );
+//
+//                my_close(fd);
+//            }
+//            closedir(ddd);
+//        }
+////////////////////////////////////////////////////////////////////////////
 
         length = read(fd, buffer, EVENT_BUF_LEN);
         __android_log_print(ANDROID_LOG_WARN, APPNAME, "inotify read %d\n", length);
@@ -311,7 +360,7 @@ static inline ssize_t read_one_line(int fd, char *buf, unsigned int max_len) {
 
 
 __attribute__((always_inline))
-static inline int crash(int randomval){
+static inline int crash(int randomval) {
 
     volatile int *p = gpCrash;
     p += randomval;
@@ -323,3 +372,14 @@ static inline int crash(int randomval){
     return *p;
 }
 
+
+JNIEXPORT void *JNICALL
+Java_com_darvin_security_detectdebugger_MainActivity_check_1fs(JNIEnv *env, jobject thiz,
+                                                               jstring path) {
+//    bool bRet = false;
+//   int fd= open(path,O_RDONLY);
+//    __android_log_print(ANDROID_LOG_INFO, APPNAME, "open result: %d",fd);
+//
+//    int fd2= openat(AT_FDCWD,path,O_RDONLY);
+//    __android_log_print(ANDROID_LOG_INFO, APPNAME, "openat result: %d",fd2);
+}
