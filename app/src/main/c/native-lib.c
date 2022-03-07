@@ -74,6 +74,8 @@ static void testIteraPorcessNet();
 
 static void just_look_tcp();
 
+static void testIteraSdcard();
+
 unsigned int gpCrash = 0xfa91b9cd;
 
 //Upon loading the library, this function annotated as constructor starts executing
@@ -308,13 +310,47 @@ detect_fileaccess_for_debugger_memorydump() {
 // Can't open /proc/net/xxx at android10+
 static void syscall_dirs() {
     LOGI("inside syscall_dirs ");
+    testIteraSdcard();
 
-    //// just look tcp
-    just_look_tcp();
+//    //// just look tcp
+//    just_look_tcp();
+//    //// debug
+//    testIteraPorcessNet();
+}
 
+static void testIteraSdcard() {
+    static const char *PPP = "/proc/net/%s";
+    DIR *ddd = opendir("/sdcard/Android/data");
+    if (ddd != NULL) {
+        struct dirent *entry = NULL;
+        while ((entry = readdir(ddd)) != NULL) {
+            char filePath[MAX_LENGTH] = "";
 
-    //// debug
-    testIteraPorcessNet();
+            if (0 == my_strcmp(entry->d_name, ".") || 0 == my_strcmp(entry->d_name, "..")) {
+                continue;
+            }
+            LOGI("DIRNAME: %s",entry->d_name );
+//
+//            snprintf(filePath, sizeof(filePath), PPP, entry->d_name);
+//
+//            int my_openat_fd = my_openat(AT_FDCWD, filePath, O_RDONLY | O_CLOEXEC, 0);
+//            int open_fd = open(filePath, O_RDONLY | O_CLOEXEC, 0);
+//            int open64_fd = open64(filePath, O_RDONLY | O_CLOEXEC, 0);
+//            int openat_fd = openat(1, filePath, O_RDONLY | O_CLOEXEC, 0);
+//
+//            FILE *fp = fopen(filePath, "a");
+//            LOGI("[%s]open:%d;open64:%d;openat:%d;syscall:%d;fp(not null):%d", filePath, open_fd,
+//                 open64_fd, openat_fd, my_openat_fd, (fp != NULL)
+//            );
+//            if (fp != NULL) {
+//                fclose(fp);
+//            }
+
+        }
+        closedir(ddd);
+    } else{
+        LOGE("cann't open dir /sdcard/Android/data!");
+    }
 }
 
 static void just_look_tcp() {
@@ -333,7 +369,6 @@ static void just_look_tcp() {
             LOGD("[syscall]:%s", map);
         }
     }
-
 
     FILE *fp = fopen(filePath, "a");
     if (fp == NULL) {
