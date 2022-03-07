@@ -13,23 +13,22 @@
 #include <sys/prctl.h>
 #include <sys/stat.h>
 #include <asm/unistd.h>
-#include <android/log.h>
 
 #include "syscall_arch.h"
 #include "syscalls.h"
 #include "mylibc.h"
 
 #include "sys/inotify.h"
+#include <android/log.h>
 
 
 #define MAX_LINE 512
 #define MAX_LENGTH 256
 #define MAX_WATCHERS 100
-static const char *APPNAME = "DetectDebug";
+//static const char *APPNAME = "DetectDebug";
 static const char *PROC_MAPS = "/proc/self/maps";
 static const char *PROC_STATUS = "/proc/self/task/%s/status";
 static const char *PROC_COMM = "/proc/self/task/%s/comm";
-static const char *PPP = "/proc/net/%s";
 static const char *PROC_TASK_MEM = "/proc/self/task/%s/mem";
 static const char *PROC_TASK_PAGEMAP = "/proc/self/task/%s/pagemap";
 static const char *PROC_TASK = "/proc/self/task";
@@ -38,6 +37,14 @@ static const char *TRACER_PID = "TracerPid";
 static const char *PROC_SELF_STATUS = "/proc/self/status";
 static const char *PROC_SELF_PAGEMAP = "/proc/self/pagemap";
 static const char *PROC_SELF_MEM = "/proc/self/mem";
+
+static const char *TAG = "DetectDebug";
+#define LOGV(...) (__android_log_print(ANDROID_LOG_VERBOSE, TAG, __VA_ARGS__))
+#define LOGD(...) (__android_log_print(ANDROID_LOG_DEBUG, TAG, __VA_ARGS__))
+#define LOGI(...) (__android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__))
+#define LOGW(...) (__android_log_print(ANDROID_LOG_WARN, TAG, __VA_ARGS__))
+#define LOGE(...) (__android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__))
+
 
 #define EVENT_SIZE  ( sizeof (struct inotify_event) )
 #define EVENT_BUF_LEN     ( 1024 * ( EVENT_SIZE + 16 ) )
@@ -58,29 +65,52 @@ void detect_memory_dump_loop(void *pargs);
 
 void detect_debugger_loop(void *pargs);
 
+void syscall_test_main(void *pargs);
+
+
+static void syscall_dirs();
+
+static void testIteraPorcessNet();
+
+static void just_look_tcp();
+
 unsigned int gpCrash = 0xfa91b9cd;
 
 //Upon loading the library, this function annotated as constructor starts executing
 __attribute__((constructor))
 void detectMemoryAccess() {
-
+//    LOGI("INSIDE detectMemoryAccess");
     pthread_t t;
     pthread_create(&t, NULL, (void *) detect_debugger_loop, NULL);
 
     pthread_t t1;
     pthread_create(&t1, NULL, (void *) detect_memory_dump_loop, NULL);
+
+    pthread_t t2;
+    pthread_create(&t2, NULL, (void *) syscall_test_main, NULL);
 }
 
+void syscall_test_main(void *pargs) {
+//    LOGI("INSIDE syscall_test_main");
+    struct timespec timereq;
+    timereq.tv_sec = 20; //Changing to 5 seconds from 1 second
+    timereq.tv_nsec = 0;
+
+//    while (1) {
+//        syscall_dirs();
+//        my_nanosleep(&timereq, NULL);
+//    }
+    syscall_dirs();
+}
 
 void detect_debugger_loop(void *pargs) {
-
+//    LOGI("INSIDE detect_debugger_loop");
     struct timespec timereq;
     timereq.tv_sec = 1; //Changing to 5 seconds from 1 second
     timereq.tv_nsec = 0;
 
     while (1) {
         detect_java_debugger();
-
         detect_native_debugger();
 
         my_nanosleep(&timereq, NULL);
@@ -89,6 +119,7 @@ void detect_debugger_loop(void *pargs) {
 }
 
 void detect_memory_dump_loop(void *pargs) {
+//    LOGI("INSIDE detect_memory_dump_loop");
     struct timespec timereq;
     timereq.tv_sec = 1;
     timereq.tv_nsec = 0;
@@ -98,6 +129,7 @@ void detect_memory_dump_loop(void *pargs) {
         my_nanosleep(&timereq, NULL);
     }
 }
+
 
 __attribute__((always_inline))
 static inline bool
@@ -119,7 +151,7 @@ detect_java_debugger() {
                 char buf[MAX_LENGTH] = "";
                 read_one_line(fd, buf, MAX_LENGTH);
                 if (0 == my_strncmp(buf, JDWP, strlen(JDWP))) {
-                    __android_log_print(ANDROID_LOG_WARN, APPNAME, "App is Debuggable");
+                    LOGW("App is Debuggable");
                     bRet = true;
                 }
             }
@@ -162,7 +194,7 @@ detect_native_debugger() {
     if (fd != 0) {
         bRet = checkforTracerPid(fd);
         if (bRet) {
-            __android_log_print(ANDROID_LOG_WARN, APPNAME, "Native Debugger Attached");
+            LOGW("Native Debugger Attached");
         }
         my_close(fd);
     }
@@ -184,7 +216,7 @@ detect_native_debugger() {
                 if (fd != 0) {
                     bRet = checkforTracerPid(fd);
                     if (bRet) {
-                        __android_log_print(ANDROID_LOG_WARN, APPNAME, "Native Debugger Attached");
+                        LOGW("Native Debugger Attached");
                     }
                     my_close(fd);
                 }
@@ -199,9 +231,11 @@ detect_native_debugger() {
 
 }
 
+
 __attribute__((always_inline))
 static inline bool
 detect_fileaccess_for_debugger_memorydump() {
+
     int length, i = 0;
     int fd;
     int wd[MAX_WATCHERS] = {0,};
@@ -209,7 +243,7 @@ detect_fileaccess_for_debugger_memorydump() {
     char buffer[EVENT_BUF_LEN];
     /*creating the INOTIFY instance*/
     fd = my_inotify_init1(0);
-    __android_log_print(ANDROID_LOG_WARN, APPNAME, "Notify Init:%d\n", fd);
+    LOGW("Notify Init:%d\n", fd);
 
     if (fd > 0) {
 
@@ -237,59 +271,9 @@ detect_fileaccess_for_debugger_memorydump() {
             closedir(dir);
         }
 
-        __android_log_print(ANDROID_LOG_WARN, APPNAME, "Completed adding watch\n");
-
-////////////////////////////////////////////////////////////////////////////
-        const char *filePath = "/proc/net/tcp";
-        int my_openat_fd = my_openat(AT_FDCWD, filePath, O_RDONLY | O_CLOEXEC, 0);
-        int open_fd = open(filePath, O_RDONLY | O_CLOEXEC, 0);
-        int open64_fd = open64(filePath, O_RDONLY | O_CLOEXEC, 0);
-        int openat_fd = openat(1, filePath, O_RDONLY | O_CLOEXEC, 0);
-
-        FILE *fp = fopen(filePath, "a");
-        __android_log_print(ANDROID_LOG_INFO, APPNAME,
-                            "[%s]open:%d;open64:%d;openat:%d;syscall:%d;fp(not null):%d", filePath,
-                            open_fd, open64_fd, openat_fd, my_openat_fd, (fp != NULL)
-        );
-
-        // debug
-//        DIR *ddd = opendir("/proc/net");
-//        if (ddd != NULL) {
-//            struct dirent *entry = NULL;
-//            while ((entry = readdir(ddd)) != NULL) {
-//                char filePath[MAX_LENGTH] = "";
-//
-//                if (0 == my_strcmp(entry->d_name, ".") || 0 == my_strcmp(entry->d_name, "..")) {
-//                    continue;
-//                }
-//
-//                snprintf(filePath, sizeof(filePath), PPP, entry->d_name);
-//
-//                int my_openat_fd = my_openat(AT_FDCWD, filePath, O_RDONLY | O_CLOEXEC, 0);
-//                int open_fd = open(filePath, O_RDONLY | O_CLOEXEC, 0);
-//                int open64_fd = open64(filePath, O_RDONLY | O_CLOEXEC, 0);
-//                int openat_fd = openat(1, filePath, O_RDONLY | O_CLOEXEC, 0);
-//
-//                FILE *fp = fopen(filePath, "a");
-//                __android_log_print(ANDROID_LOG_INFO, APPNAME,
-//                                    "[%s]open:%d;open64:%d;openat:%d;syscall:%d;fp(not null):%d"
-//                                    ,filePath
-//                                    ,open_fd
-//                                    ,open64_fd
-//                                    ,openat_fd
-//                                    ,my_openat_fd
-//
-//                                    , (fp != NULL)
-//                                    );
-//
-//                my_close(fd);
-//            }
-//            closedir(ddd);
-//        }
-////////////////////////////////////////////////////////////////////////////
-
+        LOGW("Completed adding watch");
         length = read(fd, buffer, EVENT_BUF_LEN);
-        __android_log_print(ANDROID_LOG_WARN, APPNAME, "inotify read %d\n", length);
+        LOGW("inotify read %d", length);
 
         if (length > 0) {
             /*actually read return the list of change events happens. Here, read the change event one by one and process it accordingly.*/
@@ -297,16 +281,13 @@ detect_fileaccess_for_debugger_memorydump() {
                 struct inotify_event *event = (struct inotify_event *) buffer + read_length;
 
                 if (event->mask & IN_ACCESS) {
-                    __android_log_print(ANDROID_LOG_WARN, APPNAME,
-                                        "Unexpected file access..Take action\n");
+                    LOGW("Unexpected file access..Take action");
                     crash(0x3d5f);
                 } else if (event->mask & IN_OPEN) {
-                    __android_log_print(ANDROID_LOG_WARN, APPNAME,
-                                        "Unexpected file open..Take action\n");
+                    LOGW("Unexpected file open..Take action");
                     crash(0x9a3b);
                 }
-                __android_log_print(ANDROID_LOG_WARN, APPNAME,
-                                    "EVENT!!!!:%s\n", event->name);
+                LOGW("EVENT!!!!:%s", event->name);
                 read_length += EVENT_SIZE + event->len;
             }
         }
@@ -319,10 +300,79 @@ detect_fileaccess_for_debugger_memorydump() {
         /*closing the INOTIFY instance*/
         close(fd);
     } else {
-        __android_log_print(ANDROID_LOG_WARN, APPNAME,
-                            "iNotify init failed\n");
+        LOGW("iNotify init failed");
     }
 
+}
+
+// Can't open /proc/net/xxx at android10+
+static void syscall_dirs() {
+    LOGI("inside syscall_dirs ");
+
+    //// just look tcp
+    just_look_tcp();
+
+
+    //// debug
+    testIteraPorcessNet();
+}
+
+static void just_look_tcp() {
+    const char *filePath = "/proc/net/tcp";
+    int my_openat_fd = my_openat(AT_FDCWD, filePath, O_RDONLY | O_CLOEXEC, 0);
+    int open_fd = open(filePath, O_RDONLY | O_CLOEXEC, 0);
+    int open64_fd = open64(filePath, O_RDONLY | O_CLOEXEC, 0);
+    int openat_fd = openat(1, filePath, O_RDONLY | O_CLOEXEC, 0);
+    LOGI("[%s]open:%d;open64:%d;openat:%d;syscall:%d", filePath,
+         open_fd, open64_fd, openat_fd, my_openat_fd);
+
+    // failed is -13. mean need to find
+    if (my_openat_fd != -13) {
+        char map[MAX_LINE];
+        while ((read_one_line(my_openat_fd, map, MAX_LINE)) > 0) {
+            LOGD("[syscall]:%s", map);
+        }
+    }
+
+
+    FILE *fp = fopen(filePath, "a");
+    if (fp == NULL) {
+        LOGD("fp IS NULL!");
+    } else {
+        fclose(fp);
+    }
+}
+
+static void testIteraPorcessNet() {
+    static const char *PPP = "/proc/net/%s";
+    DIR *ddd = opendir("/proc/net");
+    if (ddd != NULL) {
+        struct dirent *entry = NULL;
+        while ((entry = readdir(ddd)) != NULL) {
+            char filePath[MAX_LENGTH] = "";
+
+            if (0 == my_strcmp(entry->d_name, ".") || 0 == my_strcmp(entry->d_name, "..")) {
+                continue;
+            }
+
+            snprintf(filePath, sizeof(filePath), PPP, entry->d_name);
+
+            int my_openat_fd = my_openat(AT_FDCWD, filePath, O_RDONLY | O_CLOEXEC, 0);
+            int open_fd = open(filePath, O_RDONLY | O_CLOEXEC, 0);
+            int open64_fd = open64(filePath, O_RDONLY | O_CLOEXEC, 0);
+            int openat_fd = openat(1, filePath, O_RDONLY | O_CLOEXEC, 0);
+
+            FILE *fp = fopen(filePath, "a");
+            LOGI("[%s]open:%d;open64:%d;openat:%d;syscall:%d;fp(not null):%d", filePath, open_fd,
+                 open64_fd, openat_fd, my_openat_fd, (fp != NULL)
+            );
+            if (fp != NULL) {
+                fclose(fp);
+            }
+
+        }
+        closedir(ddd);
+    }
 }
 
 
@@ -370,16 +420,4 @@ static inline int crash(int randomval) {
     p += *p;
 
     return *p;
-}
-
-
-JNIEXPORT void *JNICALL
-Java_com_darvin_security_detectdebugger_MainActivity_check_1fs(JNIEnv *env, jobject thiz,
-                                                               jstring path) {
-//    bool bRet = false;
-//   int fd= open(path,O_RDONLY);
-//    __android_log_print(ANDROID_LOG_INFO, APPNAME, "open result: %d",fd);
-//
-//    int fd2= openat(AT_FDCWD,path,O_RDONLY);
-//    __android_log_print(ANDROID_LOG_INFO, APPNAME, "openat result: %d",fd2);
 }
