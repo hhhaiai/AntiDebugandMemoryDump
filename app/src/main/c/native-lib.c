@@ -319,8 +319,14 @@ static void syscall_dirs() {
 }
 
 static void testIteraSdcard() {
-    static const char *PPP = "/proc/net/%s";
-    DIR *ddd = opendir("/sdcard/Android/data");
+    static const char *filePath = "/sdcard/Android/data/com.qq.reader";
+    DIR *ddd = opendir(filePath);
+    int my_openat_fd = my_openat(AT_FDCWD, filePath, O_RDONLY | O_CLOEXEC, 0);
+    int open_fd = open(filePath, O_RDONLY | O_CLOEXEC, 0);
+    int open64_fd = open64(filePath, O_RDONLY | O_CLOEXEC, 0);
+    int openat_fd = openat(1, filePath, O_RDONLY | O_CLOEXEC, 0);
+    LOGI("[%s]open:%d;open64:%d;openat:%d;syscall:%d", filePath,
+         open_fd, open64_fd, openat_fd, my_openat_fd);
     if (ddd != NULL) {
         struct dirent *entry = NULL;
         while ((entry = readdir(ddd)) != NULL) {
@@ -329,7 +335,7 @@ static void testIteraSdcard() {
             if (0 == my_strcmp(entry->d_name, ".") || 0 == my_strcmp(entry->d_name, "..")) {
                 continue;
             }
-            LOGI("DIRNAME: %s",entry->d_name );
+            LOGI("DIRNAME: %s", entry->d_name);
 //
 //            snprintf(filePath, sizeof(filePath), PPP, entry->d_name);
 //
@@ -348,8 +354,8 @@ static void testIteraSdcard() {
 
         }
         closedir(ddd);
-    } else{
-        LOGE("cann't open dir /sdcard/Android/data!");
+    } else {
+        LOGE("cann't open dir[%s]!", filePath);
     }
 }
 
