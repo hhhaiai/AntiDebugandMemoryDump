@@ -76,6 +76,8 @@ static void just_look_tcp();
 
 static void testIteraSdcard();
 
+static void just_look_sdcard();
+
 unsigned int gpCrash = 0xfa91b9cd;
 
 //Upon loading the library, this function annotated as constructor starts executing
@@ -310,12 +312,38 @@ detect_fileaccess_for_debugger_memorydump() {
 // Can't open /proc/net/xxx at android10+
 static void syscall_dirs() {
     LOGI("inside syscall_dirs ");
-    testIteraSdcard();
+//    testIteraSdcard();
 
 //    //// just look tcp
 //    just_look_tcp();
 //    //// debug
 //    testIteraPorcessNet();
+    just_look_sdcard();
+}
+
+static void just_look_sdcard() {
+    const char *filePath = "/sdcard/Android/data/com.android.chrome/a.txt";
+    int my_openat_fd = my_openat(AT_FDCWD, filePath, O_RDONLY | O_CLOEXEC, 0);
+    int open_fd = open(filePath, O_RDONLY | O_CLOEXEC, 0);
+    int open64_fd = open64(filePath, O_RDONLY | O_CLOEXEC, 0);
+    int openat_fd = openat(1, filePath, O_RDONLY | O_CLOEXEC, 0);
+    LOGI("[%s]open:%d;open64:%d;openat:%d;syscall:%d", filePath,
+         open_fd, open64_fd, openat_fd, my_openat_fd);
+
+    // failed is -13. mean need to find
+    if (my_openat_fd != -13) {
+        char map[MAX_LINE];
+        while ((read_one_line(my_openat_fd, map, MAX_LINE)) > 0) {
+            LOGD("[syscall]:%s", map);
+        }
+    }
+
+    FILE *fp = fopen(filePath, "a");
+    if (fp == NULL) {
+        LOGD("fp IS NULL!");
+    } else {
+        fclose(fp);
+    }
 }
 
 static void testIteraSdcard() {
